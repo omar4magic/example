@@ -1,0 +1,153 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// The API key for the movie database
+const String apiKey = 'afdcd475833e8e0d4d610c1bbaa5bfbd';
+
+// The base URL for the movie database
+const String baseUrl = 'https://api.themoviedb.org/3';
+
+// A function that returns a list of movies similar to a given movie id
+Future<List<Movie>> getSimilarMovies(int movieId) async {
+  // The endpoint for getting similar movies
+  String url = '$baseUrl/movie/$movieId/similar?api_key=$apiKey';
+  // Make a GET request to the API
+  var response = await http.get(Uri.parse(url));
+  // Parse the JSON response
+  var data = json.decode(response.body);
+  // Extract the results array
+  var results = data['results'] as List;
+  // Map each result to a Movie object and return the list
+  return results.map((result) => Movie.fromJson(result)).toList();
+}
+
+// A class that represents a movie
+class Movie {
+  // The id of the movie
+  final int id;
+  // The title of the movie
+  final String title;
+  // The poster path of the movie
+  final String posterPath;
+
+  // A constructor that initializes the fields from a JSON object
+  Movie.fromJson(Map<String, dynamic> json)
+      : id = json['id'],
+        title = json['title'],
+        posterPath = json['poster_path'];
+}
+
+// A widget that displays a movie poster with its title
+class MovieCard extends StatelessWidget {
+  // The movie to display
+  final Movie movie;
+
+  // A constructor that takes the movie as an argument
+  MovieCard(this.movie);
+
+  @override
+  Widget build(BuildContext context) {
+    // Return a card widget with a column of an image and a text
+    return Card(
+      child: Column(
+        children: [
+          // Display the movie poster image from the base URL and poster path
+          Image.network(
+              'https://image.tmdb.org/t/p/w500${movie.posterPath}'),
+          // Display the movie title in a text widget
+          Text(movie.title),
+        ],
+      ),
+    );
+  }
+}
+
+// A widget that displays a list of movies in a grid view
+class MovieGrid extends StatelessWidget {
+  // The list of movies to display
+  final List<Movie> movies;
+
+  // A constructor that takes the movies as an argument
+  MovieGrid(this.movies);
+
+  @override
+  Widget build(BuildContext context) {
+    // Return a grid view widget with four cross axis count and movie cards as children
+    return GridView.count(
+      crossAxisCount: 4,
+      children: movies.map((movie) => MovieCard(movie)).toList(),
+    );
+  }
+}
+
+// A widget that displays a search bar and a list of recommended movies based on the user input
+class MovieSearch extends StatefulWidget {
+  @override
+  _MovieSearchState createState() => _MovieSearchState();
+}
+
+class _MovieSearchState extends State<MovieSearch> {
+  // A controller for the search text field
+  TextEditingController _controller = TextEditingController();
+  // A list of recommended movies based on the user input
+  List<Movie> _recommendedMovies = [];
+
+  @override
+  Widget build(BuildContext context) {
+    // Return a scaffold widget with an app bar and a body
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Movie Recommendation System'),
+      ),
+      body: Column(
+        children: [
+          // Display a text field with a controller and an icon button for searching movies by title
+          TextField(
+            controller: _controller,
+            decoration: InputDecoration(
+              hintText: 'Enter a movie title',
+              suffixIcon: IconButton(
+                icon: Icon(Icons.search),
+                onPressed: () async {
+                  // Get the input text from the controller
+                  String input = _controller.text;
+                  // If the input is not empty, search for movies by title using the API endpoint
+                  if (input.isNotEmpty) {
+                    String url =
+                        '$baseUrl/search/movie?api_key=$apiKey&query=$input';
+                    var response = await http.get(Uri.parse(url));
+                    var data = json.decode(response.body);
+                    var results = data['results'] as List;
+                    // If there are any results, get the first one and its id
+                    if (results.isNotEmpty) {
+                      var firstResult = results.first;
+                      int movieId = firstResult['id'];
+                      // Get the list of similar movies using the function defined above and update the state with the new list
+                      List<Movie> similarMovies =
+                          await getSimilarMovies(movieId);
+                      setState(() {
+                        _recommendedMovies = similarMovies;
+                      });
+                    }
+                  }
+                },
+              ),
+            ),
+          ),
+          // Display a movie grid with the recommended movies
+          Expanded(
+            child: MovieGrid(_recommendedMovies),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// The main function that runs the app
+void main() {
+  runApp(MaterialApp(
+    home: MovieSearch(),
+  ));
+}
